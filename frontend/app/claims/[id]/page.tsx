@@ -262,7 +262,24 @@ export default function ClaimDecision() {
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              {trace.events.map((evt, i) => <TraceRow key={i} event={evt} />)}
+              {[...trace.events].sort((a, b) => {
+                const ORDER = [
+                  "IntakeValidator",
+                  "DocumentClassifierAgent", "DocumentQualityAgent",
+                  "DocumentGate",
+                  "ExtractionAgent",
+                  "CrossDocValidator", "EARLY_STOP",
+                  "MemberValidationAgent", "ExclusionCheckerAgent",
+                  "WaitingPeriodAgent", "PreAuthCheckerAgent",
+                  "PerClaimLimitAgent", "BenefitCalculatorAgent",
+                  "FraudSignalAgent", "PolicyOrchestratorAgent",
+                  "DecisionAggregator", "DecisionSynthesizer",
+                ];
+                const rank = (s: string) => { const i = ORDER.findIndex(p => s.startsWith(p)); return i === -1 ? 999 : i; };
+                const docIdx = (s: string) => { const m = s.match(/\[doc_(\d+)\]/); return m ? parseInt(m[1]) : 0; };
+                const dr = rank(a.step) - rank(b.step);
+                return dr !== 0 ? dr : docIdx(a.step) - docIdx(b.step);
+              }).map((evt, i) => <TraceRow key={i} event={evt} />)}
             </div>
           </div>
         )}
