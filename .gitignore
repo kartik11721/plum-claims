@@ -1,0 +1,28 @@
+# Python
+**/__pycache__/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment
+.env
+.env.local
+
+# Runtime data
+/tmp/plum_db/
+backend/scripts/sample_docs/*.jpg
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/.git/
+
+# OS
+.DS_Store
