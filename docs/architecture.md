@@ -125,7 +125,7 @@ Manual claims review is slow, inconsistent, and doesn't scale. This system autom
 |-----------|--------|---------------------|
 | Backend | FastAPI + Python 3.11 | Flask (no async), Node (weaker LLM ecosystem) |
 | LLM | Claude Sonnet 4.6 | GPT-4o (Anthropic SDK prompt caching = lower cost) |
-| Orchestration | Custom state machine | LangGraph (more abstraction than trace requirements reward) |
+| Orchestration | LangGraph StateGraph | Custom state machine (LangGraph gives parallel fan-out and Send-based per-document dispatch that a hand-rolled machine can't express cleanly) |
 | Storage | File-based JSON (assessment) | SQLite → Postgres at scale |
 | Frontend | Next.js 16 App Router | Vite React (Next gives API-ready deployment) |
 
@@ -136,7 +136,7 @@ Manual claims review is slow, inconsistent, and doesn't scale. This system autom
 1. **No real auth** — single policy, no JWT. Scope cut for timeline.
 2. **SQLite/file storage** — swappable behind the `db.py` interface.
 3. **Claude vision only** — no Tesseract fallback. Adds OCR coverage without doubling test surface.
-4. **Synchronous pipeline** — sufficient for assessment; at scale add Celery/SQS worker queue.
+4. **In-process async pipeline** — LangGraph runs inside the HTTP request with genuine parallel branches (document analysis, fraud + policy). At production scale, move to Celery/SQS workers so the HTTP layer can return immediately.
 5. **Submission deadline check removed** — policy has 30-day claim window; test cases use 2024 dates while today is 2026, making it a false reject for all eval cases. Documented trade-off.
 
 ---
