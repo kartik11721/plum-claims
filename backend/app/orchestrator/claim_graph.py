@@ -144,20 +144,6 @@ class ClaimGraph:
         trace_id = str(uuid.uuid4())
         recorder = TraceRecorder(trace_id=trace_id, claim_id=claim_id)
 
-        # Simulated component failure (TC011) — pre-degrade before graph runs
-        initial_factors: list[float] = []
-        initial_degraded: list[str] = []
-        if submission.simulate_component_failure:
-            from ..models.trace import TraceStatus
-            initial_factors = [0.7]
-            initial_degraded = ["ExtractionAgent[simulated]"]
-            recorder.record(
-                "ExtractionAgent[simulated_failure]",
-                TraceStatus.DEGRADED, 0.0, {},
-                {"note": "Simulated component failure as requested by test case"},
-                error="SimulatedFailure: component failure injected by test flag",
-            )
-
         initial_state: ClaimGraphState = {
             "submission":            submission,
             "claim_id":              claim_id,
@@ -165,8 +151,8 @@ class ClaimGraph:
             "policy":                self.policy,
             "progress_queue":        progress_queue,
             "recorder":              recorder,
-            "degradation_factors":   initial_factors,
-            "degraded_components":   initial_degraded,
+            "degradation_factors":   [],
+            "degraded_components":   [],
             "intake_ok":             False,
             "intake_member_name":    None,
             "intake_join_date":      "2024-04-01",

@@ -100,7 +100,7 @@ source .venv/bin/activate
 pytest tests/ -v
 ```
 
-24 unit tests + 4 orchestrator integration tests. Integration tests stub the LLM with `AsyncMock` so they run without an API key.
+24 unit tests + 12 orchestrator integration tests. Integration tests stub the LLM with `AsyncMock` so they run without an API key.
 
 ---
 

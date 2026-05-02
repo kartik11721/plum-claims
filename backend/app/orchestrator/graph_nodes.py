@@ -262,6 +262,8 @@ async def extract_single_doc_node(state: ClaimGraphState) -> dict:
     _emit(q, step, "started")
     t0 = time.monotonic()
     try:
+        if submission.simulate_component_failure and doc_index == 0:
+            raise RuntimeError("SimulatedFailure: graceful-degradation test triggered by submission flag")
         agent = ExtractionAgent()
         if classification:
             result = await agent._extract_single(doc, classification)
