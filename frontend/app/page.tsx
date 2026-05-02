@@ -50,8 +50,27 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const completedCount = Object.values(stepStatuses).filter(s => s === "done" || s === "degraded").length;
-  const progressPct = STEPS.length > 0 ? Math.round((completedCount / STEPS.length) * 100) : 0;
+  // Map raw backend step names to STEPS keys (e.g. "ExtractionAgent[doc_1]" → "ExtractionAgent",
+  // policy sub-agents → "PolicyOrchestratorAgent"). stepStatuses may contain many more keys than
+  // STEPS (sub-agents, per-doc extractors) which would push the percentage above 100% if counted raw.
+  const STEP_KEYS = new Set(STEPS.map(s => s.key));
+  const canonicalStatuses: Record<string, StepStatus> = {};
+  for (const [raw, status] of Object.entries(stepStatuses)) {
+    const key = STEP_KEYS.has(raw) ? raw
+      : raw.startsWith("ExtractionAgent") ? "ExtractionAgent"
+      : ["MemberValidationAgent","ExclusionCheckerAgent","WaitingPeriodAgent",
+         "PreAuthCheckerAgent","PerClaimLimitAgent","BenefitCalculatorAgent"].includes(raw)
+        ? "PolicyOrchestratorAgent"
+      : null;
+    if (!key) continue;
+    const prev = canonicalStatuses[key];
+    // Prefer degraded > done > running > pending when merging sub-step statuses
+    if (!prev || status === "degraded" || (status === "done" && prev === "running")) {
+      canonicalStatuses[key] = status;
+    }
+  }
+  const completedCount = Object.values(canonicalStatuses).filter(s => s === "done" || s === "degraded").length;
+  const progressPct = STEPS.length > 0 ? Math.min(100, Math.round((completedCount / STEPS.length) * 100)) : 0;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -270,7 +289,7 @@ export default function Home() {
               </div>
               <ul className="space-y-1.5">
                 {STEPS.map(s => {
-                  const status = stepStatuses[s.key] ?? "pending";
+                  const status = canonicalStatuses[s.key] ?? "pending";
                   return (
                     <li key={s.key} className="flex items-center gap-2.5" style={{ fontSize: "0.8125rem" }}>
                       <span style={{ width: 20, height: 20, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
