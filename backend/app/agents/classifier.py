@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections import Counter
 from ..models.claim import ClaimSubmission, UploadedDoc, DocumentType, ClaimCategory
 from ..models.agents import (
     ClassificationResult,
@@ -59,52 +60,69 @@ class DocumentClassifierAgent:
                 confidence=classified_type["confidence"],
             ))
 
-        # Check required documents
+        # Check required documents — policy JSON is the source of truth; hardcoded dict is fallback only
         category = submission.claim_category.value
-        required = set(REQUIRED_DOCS_FOR_CATEGORY.get(category, []))
-        # Also check policy doc requirements
-        policy_required = set(
-            self.policy.get("document_requirements", {}).get(category, {}).get("required", [])
-        )
-        required = required | policy_required
+        policy_doc_reqs = self.policy.get("document_requirements", {}).get(category, {}).get("required", None)
+        if policy_doc_reqs is not None:
+            required = set(policy_doc_reqs)
+        else:
+            required = set(REQUIRED_DOCS_FOR_CATEGORY.get(category, []))
 
         found_types = {c.classified_type.value for c in classifications if c.classified_type != DocumentType.UNREADABLE}
         missing = [DocumentType(r) for r in required if r not in found_types]
-
-        unexpected: list[DocClassification] = []
-        for c in classifications:
-            if c.classified_type.value not in required and c.classified_type not in (DocumentType.UNREADABLE, DocumentType.OTHER):
-                # Not necessarily wrong, but flag them
-                pass
-
-        # Detect wrong types (documents uploaded that are NOT in required set)
-        wrong_type_docs = [
-            c for c in classifications
-            if c.classified_type.value not in required
-            and c.classified_type not in (DocumentType.OTHER,)
-        ]
 
         ok = len(missing) == 0
         member_message = None
 
         if not ok:
-            uploaded_types = [_type_display(c.classified_type.value) for c in classifications]
+            uploaded_display = [
+                _type_display(c.classified_type.value) for c in classifications
+                if c.classified_type != DocumentType.UNREADABLE
+            ]
             missing_type_names = [_type_display(m.value) for m in missing]
+            required_display = [_type_display(r) for r in required]
 
-            if wrong_type_docs:
-                wrong_names = [_type_display(c.classified_type.value) for c in wrong_type_docs]
+            # Documents that could not be read
+            unreadable_docs = [c for c in classifications if c.classified_type == DocumentType.UNREADABLE]
+
+            # Docs whose type is not in required at all (and not UNREADABLE/OTHER)
+            wrong_type_docs = [
+                c for c in classifications
+                if c.classified_type.value not in required
+                and c.classified_type not in (DocumentType.OTHER, DocumentType.UNREADABLE)
+            ]
+
+            # Same required type submitted more than once (e.g. 2 prescriptions)
+            type_counts = Counter(
+                c.classified_type.value for c in classifications
+                if c.classified_type not in (DocumentType.UNREADABLE, DocumentType.OTHER)
+            )
+            redundant_types = {t: cnt for t, cnt in type_counts.items() if t in required and cnt > 1}
+
+            if unreadable_docs or wrong_type_docs or redundant_types:
+                issues = []
+                if unreadable_docs:
+                    names = [c.file_name or c.file_id for c in unreadable_docs]
+                    issues.append(f"unreadable: {', '.join(repr(n) for n in names)}")
+                if wrong_type_docs:
+                    wrong_names = [_type_display(c.classified_type.value) for c in wrong_type_docs]
+                    issues.append(f"wrong type: {', '.join(wrong_names)}")
+                if redundant_types:
+                    dup_strs = [f"{cnt}× {_type_display(t)}" for t, cnt in redundant_types.items()]
+                    issues.append(f"duplicate: {', '.join(dup_strs)}")
                 member_message = (
                     f"Document verification failed for your {_type_display(category)} claim. "
-                    f"You uploaded: {', '.join(uploaded_types)}. "
-                    f"However, for a {_type_display(category)} claim you must provide: {', '.join([_type_display(r) for r in required])}. "
-                    f"The following documents appear to be wrong type: {', '.join(wrong_names)}. "
+                    f"You uploaded: {', '.join(uploaded_display) if uploaded_display else 'no readable documents'}. "
+                    f"For a {_type_display(category)} claim you must provide: {', '.join(required_display)}. "
+                    f"Issue(s) — {'; '.join(issues)}. "
                     f"Missing required documents: {', '.join(missing_type_names)}. "
-                    "Please re-upload the correct documents."
+                    "Please re-upload a clear, legible version of any flagged documents."
                 )
             else:
                 member_message = (
                     f"Document verification failed. "
-                    f"For a {_type_display(category)} claim, you must provide: {', '.join([_type_display(r) for r in required])}. "
+                    f"You uploaded: {', '.join(uploaded_display) if uploaded_display else 'no readable documents'}. "
+                    f"For a {_type_display(category)} claim, you must provide: {', '.join(required_display)}. "
                     f"Missing: {', '.join(missing_type_names)}. "
                     "Please upload the missing documents."
                 )
@@ -113,7 +131,6 @@ class DocumentClassifierAgent:
             ok=ok,
             classifications=classifications,
             missing_required=missing,
-            unexpected=unexpected,
             member_message=member_message,
         )
 

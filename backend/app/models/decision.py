@@ -39,7 +39,8 @@ class PolicyDecision(BaseModel):
     line_item_breakdown: list[LineItemDecision] = []
     rejection_reasons: list[RejectionReason] = []
     applied_rules: list[str] = []  # human-readable rule descriptions for trace
-    eligibility_date: str | None = None  # for waiting period rejections
+    eligibility_date: str | None = None   # for waiting period rejections
+    rejection_detail: str | None = None   # human-readable detail for member message (pre-auth, per-claim, etc.)
     network_discount_applied: float = 0.0
     copay_deducted: float = 0.0
     requires_manual_review: bool = False

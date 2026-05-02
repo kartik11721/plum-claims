@@ -153,6 +153,7 @@ class PolicyDecisionEngine:
                 approved_amount=0.0,
                 rejection_reasons=[RejectionReason.PRE_AUTH_MISSING],
                 applied_rules=rules_applied,
+                rejection_detail=preauth_reason,
             )
         rules_applied.append("Pre-auth check: PASSED")
 
@@ -168,6 +169,7 @@ class PolicyDecisionEngine:
                     approved_amount=0.0,
                     rejection_reasons=[RejectionReason.PER_CLAIM_EXCEEDED],
                     applied_rules=rules_applied,
+                    rejection_detail=limit_reason,
                 )
             rules_applied.append("Per-claim limit check: PASSED")
         else:
@@ -186,6 +188,9 @@ class PolicyDecisionEngine:
             manual_review_reasons.append(f"Fraud score {fraud_signals.fraud_score:.2f} ≥ threshold {fraud_score_threshold}.")
 
         # --- Line-item computation ---
+        network_discount_applied = 0.0
+        copay_deducted_val = 0.0
+
         if line_items and category in ("DENTAL", "VISION"):
             item_decisions, base_approved = compute_line_item_coverage(
                 line_items, category, submission.hospital_name, self.policy
@@ -193,13 +198,13 @@ class PolicyDecisionEngine:
             rules_applied.append(f"Line-item coverage computed for {category}: {len(item_decisions)} items.")
         else:
             # Whole-claim: apply network discount + copay
-            base_approved, discount, copay = apply_network_discount_then_copay(
+            base_approved, network_discount_applied, copay_deducted_val = apply_network_discount_then_copay(
                 submission.claimed_amount, submission.hospital_name, category, self.policy
             )
-            if discount > 0:
-                rules_applied.append(f"Network discount applied: ₹{discount:,.2f} ({discount/submission.claimed_amount*100:.0f}%)")
-            if copay > 0:
-                rules_applied.append(f"Co-pay deducted: ₹{copay:,.2f}")
+            if network_discount_applied > 0:
+                rules_applied.append(f"Network discount applied: ₹{network_discount_applied:,.2f} ({network_discount_applied/submission.claimed_amount*100:.0f}%)")
+            if copay_deducted_val > 0:
+                rules_applied.append(f"Co-pay deducted: ₹{copay_deducted_val:,.2f}")
 
             item_decisions = [LineItemDecision(
                 description="Total claim",
@@ -234,13 +239,6 @@ class PolicyDecisionEngine:
             rejection_reasons.append(RejectionReason.EXCLUDED_CONDITION)
         else:
             decision = DecisionType.APPROVED
-
-        network_discount_applied = 0.0
-        copay_deducted_val = 0.0
-        if not (line_items and category in ("DENTAL", "VISION")):
-            _, network_discount_applied, copay_deducted_val = apply_network_discount_then_copay(
-                submission.claimed_amount, submission.hospital_name, category, self.policy
-            )
 
         return PolicyDecision(
             decision=decision,
