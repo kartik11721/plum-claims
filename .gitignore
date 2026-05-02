@@ -26,3 +26,4 @@ frontend/.git/
 
 # OS
 .DS_Store
+graphify-out/

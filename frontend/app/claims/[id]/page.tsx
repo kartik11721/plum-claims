@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 type Decision = {
   claim_id: string; decision: string; approved_amount: number;
   confidence: number; member_message: string; ops_summary: string;
@@ -98,8 +100,8 @@ export default function ClaimDecision() {
     async function load() {
       try {
         const [dr, tr] = await Promise.all([
-          fetch(`http://localhost:8000/api/claims/${id}`).then(r => r.json()),
-          fetch(`http://localhost:8000/api/claims/${id}/trace`).then(r => r.json()),
+          fetch(`${API_URL}/api/claims/${id}`).then(r => r.json()),
+          fetch(`${API_URL}/api/claims/${id}/trace`).then(r => r.json()),
         ]);
         setDecision(dr); setTrace(tr);
       } catch (e: any) { setError(e.message); }

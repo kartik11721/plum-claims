@@ -1,5 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 import { useRouter } from "next/navigation";
 
 const CATEGORIES = ["CONSULTATION","DIAGNOSTIC","PHARMACY","DENTAL","VISION","ALTERNATIVE_MEDICINE"];
@@ -75,7 +77,7 @@ export default function Home() {
       fd.append("metadata", JSON.stringify(metadata));
       if (files) for (let i = 0; i < files.length; i++) fd.append("files", files[i]);
 
-      const res = await fetch("http://localhost:8000/api/claims/stream", { method: "POST", body: fd });
+      const res = await fetch(`${API_URL}/api/claims/stream`, { method: "POST", body: fd });
       if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
 
       const reader = res.body!.getReader();
