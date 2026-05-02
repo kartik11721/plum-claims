@@ -20,7 +20,7 @@ const STEPS = [
   { key: "ExtractionAgent",         label: "Extracting information" },
   { key: "CrossDocValidator",       label: "Verifying document identity" },
   { key: "FraudSignalAgent",        label: "Checking for fraud signals" },
-  { key: "PolicyDecisionEngine",    label: "Applying policy rules" },
+  { key: "PolicyOrchestratorAgent", label: "Applying policy rules" },
   { key: "DecisionSynthesizer",     label: "Generating decision" },
 ];
 

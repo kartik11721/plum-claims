@@ -213,6 +213,14 @@ def document_gate_node(state: ClaimGraphState) -> dict:
         return {"early_stop": early_stop}
 
     _emit(q, "DocumentGate", "done")
+
+    # Pre-signal the extraction step so the UI shows it as started.
+    # The fan-out dispatches N parallel ExtractionAgent[doc_N] instances; this
+    # wrapper event lets the frontend track a single "Extracting information" row.
+    clsf2 = state.get("classification_result")
+    if clsf2 and clsf2.classifications and state["submission"].documents:
+        _emit(q, "ExtractionAgent", "started")
+
     return {}
 
 
@@ -278,6 +286,10 @@ def identity_check_node(state: ClaimGraphState) -> dict:
     q = state.get("progress_queue")
     member_name = state.get("intake_member_name")
     extracted_docs = state.get("extracted_docs") or []
+
+    # Close the ExtractionAgent wrapper event (opened in document_gate_node).
+    if extracted_docs:
+        _emit(q, "ExtractionAgent", "done")
 
     _emit(q, "CrossDocValidator", "started")
     t0 = time.monotonic()
