@@ -9,6 +9,26 @@ sub-agents, each independently traceable:
   4. PreAuthCheckerAgent     — pre-authorisation required and present?
   5. PerClaimLimitAgent      — per-claim financial cap exceeded?
   6. BenefitCalculatorAgent  — network discounts, co-pay, annual OPD cap.
+
+Execution order & parallelism trade-off
+----------------------------------------
+Sub-agents 2–5 are mutually independent (no shared outputs) and could in
+principle run concurrently. BenefitCalculatorAgent (6) must follow
+ExclusionCheckerAgent (2) because it consumes the exclusions list.
+
+Sequential execution is intentional here for two reasons:
+  a) Short-circuit efficiency: a REJECTED verdict from any sub-agent terminates
+     the chain immediately, so subsequent agents are never invoked. A parallel
+     model would run all four and then collect results, doing unnecessary work
+     on the majority of rejected claims.
+  b) Zero I/O cost: every sub-agent is pure synchronous computation (<1 ms
+     each). Spawning concurrent tasks would add scheduling overhead with no
+     measurable wall-clock benefit.
+
+At production scale, if sub-agents were to perform I/O (e.g. external
+sanctions-list lookup, real-time network-hospital verification), agents 2–5
+would be worth running in parallel with asyncio.gather and a combined
+rejection check afterward.
 """
 from ..models.claim import ClaimSubmission
 from ..models.decision import PolicyDecision, RejectionReason, DecisionType

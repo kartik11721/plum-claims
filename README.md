@@ -203,7 +203,7 @@ START → IntakeAgent
 - **Parallel document analysis** — `DocumentClassifierAgent` and `DocumentQualityAgent` run concurrently; `DocumentGate` is a fan-in barrier.
 - **Per-document extraction fan-out** — LangGraph `Send` spawns one `ExtractionAgent` per uploaded document; all run in parallel and fan back in to `CrossDocValidator`.
 - **Parallel fraud + policy** — `FraudSignalAgent` and `PolicyOrchestratorAgent` run concurrently; `DecisionAggregator` merges results.
-- **Policy agent hierarchy** — `PolicyOrchestratorAgent` delegates sequentially to six specialised sub-agents (member validation → exclusion → waiting period → pre-auth → per-claim limit → benefit calculation), each with its own trace event.
+- **Policy agent hierarchy** — `PolicyOrchestratorAgent` delegates sequentially to six specialised sub-agents (member validation → exclusion → waiting period → pre-auth → per-claim limit → benefit calculation), each with its own trace event. Sub-agents 2–5 are mutually independent and could run concurrently, but sequential execution short-circuits immediately on any rejection (skipping unnecessary agents) and each sub-agent is pure computation (<1 ms, no I/O), making parallelism a net cost. If sub-agents gained I/O dependencies (e.g. real-time sanctions checks), `asyncio.gather` over agents 2–5 with a combined rejection check afterward would be the right upgrade.
 
 Gates (DocumentGate, CrossDocValidator, IntakeAgent) trigger an early stop with a specific member-facing message — no downstream processing occurs. On any non-gate agent failure, the step is recorded as DEGRADED and the pipeline continues with reduced confidence (TC011).
 
