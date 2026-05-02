@@ -100,32 +100,48 @@ class DocumentClassifierAgent:
             redundant_types = {t: cnt for t, cnt in type_counts.items() if t in required and cnt > 1}
 
             if unreadable_docs or wrong_type_docs or redundant_types:
-                issues = []
+                issue_sentences = []
                 if unreadable_docs:
                     names = [c.file_name or c.file_id for c in unreadable_docs]
-                    issues.append(f"unreadable: {', '.join(repr(n) for n in names)}")
+                    quoted = ", ".join(f'"{n}"' for n in names)
+                    issue_sentences.append(f"{quoted} could not be read — please re-upload a clearer copy.")
                 if wrong_type_docs:
                     wrong_names = [_type_display(c.classified_type.value) for c in wrong_type_docs]
-                    issues.append(f"wrong type: {', '.join(wrong_names)}")
-                if redundant_types:
-                    dup_strs = [f"{cnt}× {_type_display(t)}" for t, cnt in redundant_types.items()]
-                    issues.append(f"duplicate: {', '.join(dup_strs)}")
+                    joined = " and ".join(wrong_names) if len(wrong_names) <= 2 else ", ".join(wrong_names[:-1]) + f", and {wrong_names[-1]}"
+                    verb = "is" if len(wrong_type_docs) == 1 else "are"
+                    issue_sentences.append(f"{joined} {verb} not required for a {_type_display(category)} claim.")
+                for t, cnt in redundant_types.items():
+                    issue_sentences.append(f"You uploaded {cnt} copies of {_type_display(t)} — only one is needed.")
+
+                issues_joined = " ".join(issue_sentences)
+
+                if missing_type_names:
+                    missing_joined = " and ".join(missing_type_names) if len(missing_type_names) <= 2 else ", ".join(missing_type_names[:-1]) + f", and {missing_type_names[-1]}"
+                    action = f"Please also upload {missing_joined} and resubmit."
+                else:
+                    action = "Please correct the above and resubmit."
+
                 member_message = (
-                    f"Document verification failed for your {_type_display(category)} claim. "
-                    f"You uploaded: {', '.join(uploaded_display) if uploaded_display else 'no readable documents'}. "
-                    f"For a {_type_display(category)} claim you must provide: {', '.join(required_display)}. "
-                    f"Issue(s) — {'; '.join(issues)}. "
-                    f"Missing required documents: {', '.join(missing_type_names)}. "
-                    "Please re-upload a clear, legible version of any flagged documents."
+                    f"We couldn't process your {_type_display(category)} claim. "
+                    f"{issues_joined} "
+                    f"{action}"
                 )
             else:
-                member_message = (
-                    f"Document verification failed. "
-                    f"You uploaded: {', '.join(uploaded_display) if uploaded_display else 'no readable documents'}. "
-                    f"For a {_type_display(category)} claim, you must provide: {', '.join(required_display)}. "
-                    f"Missing: {', '.join(missing_type_names)}. "
-                    "Please upload the missing documents."
-                )
+                missing_joined = " and ".join(missing_type_names) if len(missing_type_names) <= 2 else ", ".join(missing_type_names[:-1]) + f", and {missing_type_names[-1]}"
+                required_joined = " and ".join(required_display) if len(required_display) <= 2 else ", ".join(required_display[:-1]) + f", and {required_display[-1]}"
+                was_were = "was" if len(missing_type_names) == 1 else "were"
+                if not uploaded_display:
+                    member_message = (
+                        f"No readable documents were found. "
+                        f"Your {_type_display(category)} claim requires a {required_joined}. "
+                        "Please upload the required documents and resubmit."
+                    )
+                else:
+                    member_message = (
+                        f"Your {_type_display(category)} claim requires a {required_joined}, "
+                        f"but {missing_joined} {was_were} not included. "
+                        "Please upload the missing document(s) and resubmit."
+                    )
 
         return ClassificationResult(
             ok=ok,

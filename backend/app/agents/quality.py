@@ -30,9 +30,8 @@ class DocumentQualityAgent:
         if not ok:
             file_list = ", ".join(f'"{f}"' for f in unreadable)
             member_message = (
-                f"We could not read the following document(s): {file_list}. "
-                "Please re-upload a clearer version — ensure good lighting, the document is flat, "
-                "and all text is visible. Your claim cannot be processed until legible documents are provided."
+                f"We weren't able to read {file_list}. "
+                "Please re-upload a clearer version — make sure the document is well-lit and flat with all text visible."
             )
 
         return QualityResult(ok=ok, per_doc=per_doc, unreadable_files=unreadable, member_message=member_message)

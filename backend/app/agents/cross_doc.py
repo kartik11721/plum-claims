@@ -36,13 +36,13 @@ class CrossDocValidator:
         ]
 
         if mismatches:
-            names_str = "; ".join(f'"{n["name_on_doc"]}" (doc {n["file_id"]})' for n in mismatches)
+            mismatch_names = list(dict.fromkeys(n["name_on_doc"] for n in mismatches))
+            names_str = " and ".join(f'"{n}"' for n in mismatch_names) if len(mismatch_names) <= 2 else ", ".join(f'"{n}"' for n in mismatch_names[:-1]) + f', and "{mismatch_names[-1]}"'
             member_name_str = f'"{reference_name}"'
             member_message = (
-                f"Document identity mismatch detected. "
-                f"The member on this claim is {member_name_str}, but we found different patient names on your documents: {names_str}. "
-                "All documents must belong to the same patient. "
-                "Please re-upload documents for the correct patient."
+                f"The documents don't all belong to the same patient. "
+                f"This claim is for {member_name_str}, but some documents show {names_str} instead. "
+                "Please re-upload documents that all belong to the same patient."
             )
             return IdentityCheckResult(
                 ok=False,
