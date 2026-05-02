@@ -2,6 +2,8 @@
 
 Multi-agent AI system for health insurance claims processing. Accepts claims with supporting documents, verifies them through a staged pipeline, applies policy rules deterministically, and produces auditable decisions with a full step-by-step trace.
 
+<img width="952" height="820" alt="ui" src="https://github.com/user-attachments/assets/48605ca7-f7b8-4d74-b47d-d47866f62e54" />
+
 ---
 
 ## Quick Start (One Command)
