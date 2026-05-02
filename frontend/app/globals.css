@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+:root {
+  --plum-dark:    #570e40;
+  --plum-deeper:  #460932;
+  --plum-red:     #ff4052;
+  --plum-coral:   #ff6a75;
+  --plum-green:   #92bd33;
+  --plum-yellow:  #ffbf21;
+  --plum-blue:    #91c5e7;
+  --plum-cream:   #fffaf2;
+  --plum-bisque:  #ffe1bf;
+  --background:   #fffaf2;
+  --foreground:   #2d2d2d;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Inter, Arial, sans-serif;
+}
+
+.plum-btn-primary {
+  background: linear-gradient(135deg, #570e40 0%, #ff4052 100%);
+  color: #fff;
+  border-radius: 0.625rem;
+  font-weight: 600;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+.plum-btn-primary:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+.plum-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.plum-card {
+  background: #ffffff;
+  border-radius: 1rem;
+  border: 1px solid #f0e8e0;
+  box-shadow: 0 2px 16px 0 rgba(87,14,64,0.06);
+}
+
+.plum-input {
+  width: 100%;
+  border: 1px solid #e8ddd8;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: #2d2d2d;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.plum-input:focus {
+  outline: none;
+  border-color: #ff4052;
+  box-shadow: 0 0 0 3px rgba(255,64,82,0.12);
+}
+.plum-input::placeholder {
+  color: #6b7280;
+}
