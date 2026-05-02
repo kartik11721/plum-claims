@@ -192,14 +192,18 @@ async def test_tc004_clean_consultation_approved(orchestrator, test_cases):
     assert result.approved_amount == pytest.approx(1350.0, abs=1.0)
     assert result.confidence > 0.0
 
-    # All 8 pipeline steps must appear in trace
+    # All key pipeline steps must appear in trace (agent names reflect new multi-agent graph)
     step_names = [e.step for e in trace.events]
-    for expected_step in [
-        "IntakeValidator", "DocumentClassifierAgent", "DocumentQualityAgent",
-        "ExtractionAgent", "CrossDocValidator", "FraudSignalAgent",
-        "PolicyDecisionEngine", "DecisionSynthesizer",
-    ]:
-        assert expected_step in step_names, f"Missing trace step: {expected_step}"
+    assert "IntakeValidator" in step_names
+    assert "DocumentClassifierAgent" in step_names
+    assert "DocumentQualityAgent" in step_names
+    # Per-document extraction agents are named ExtractionAgent[doc_N]
+    assert any(s.startswith("ExtractionAgent[doc_") for s in step_names), "No extraction step found"
+    assert "CrossDocValidator" in step_names
+    assert "FraudSignalAgent" in step_names
+    # Policy is now handled by PolicyOrchestratorAgent + sub-agents
+    assert "PolicyOrchestratorAgent" in step_names
+    assert "DecisionSynthesizer" in step_names
 
     # No degradation on a clean run
     assert trace.degradation_factor == pytest.approx(1.0)
@@ -415,9 +419,11 @@ async def test_tc012_excluded_treatment_rejected(orchestrator, test_cases):
     from app.models.decision import RejectionReason
     assert RejectionReason.EXCLUDED_CONDITION in result.rejection_reasons
 
-    # Pipeline must have run the full set of pre-extraction steps
+    # Pipeline must have run through policy analysis
     step_names = [e.step for e in trace.events]
-    assert "PolicyDecisionEngine" in step_names
+    assert "PolicyOrchestratorAgent" in step_names or any(
+        "Exclusion" in s or "WaitingPeriod" in s for s in step_names
+    )
 
 
 # ── TC007: pre-auth missing → rejection with resubmission instructions ────────

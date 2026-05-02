@@ -162,19 +162,50 @@ python scripts/generate_wrong_docs.py    # creates backend/scripts/sample_docs/ 
 
 ## Architecture
 
+Built on **LangGraph** (`StateGraph`). Agents coordinate through a shared state graph with genuine concurrent branches and dynamic fan-out — not a sequential caller loop.
+
 ```
-ClaimOrchestrator
- ├── IntakeValidator          — member exists? policy active?
- ├── DocumentClassifierAgent  — LLM: classify doc types          [GATE]
- ├── DocumentQualityAgent     — LLM: readability check           [GATE]
- ├── ExtractionAgent ×N       — LLM vision: parallel per doc
- ├── CrossDocValidator        — identity match across docs       [GATE]
- ├── FraudSignalAgent         — pure Python: threshold checks
- ├── PolicyDecisionEngine     — pure Python: all rules from policy_terms.json
- └── DecisionSynthesizer      — LLM: member message + ops summary
+START → IntakeAgent
+          │
+          ├─(fail)──────────────────────────────────── EarlyStop → END
+          │
+          └─(ok)─► DocumentClassifierAgent ──┐   ← parallel branch
+                   DocumentQualityAgent ─────┘
+                                    │
+                                    └─► DocumentGate
+                                          │
+                                          ├─(fail)───────────────── EarlyStop → END
+                                          │
+                                          └─(ok)─► ExtractionAgent[doc_0]  ┐
+                                                   ExtractionAgent[doc_1]  ├ Send fan-out
+                                                   ...                     │ (one per doc,
+                                                   ExtractionAgent[doc_N]  ┘  all parallel)
+                                                                  │
+                                                                  └─► CrossDocValidator
+                                                                          │
+                                                                          ├─(fail)─── EarlyStop → END
+                                                                          │
+                                                                          └─(ok)─► FraudSignalAgent ──┐  ← parallel
+                                                                                   PolicyOrchestrator ─┘
+                                                                                     ├ MemberValidationAgent
+                                                                                     ├ ExclusionCheckerAgent
+                                                                                     ├ WaitingPeriodAgent
+                                                                                     ├ PreAuthCheckerAgent
+                                                                                     ├ PerClaimLimitAgent
+                                                                                     └ BenefitCalculatorAgent
+                                                                                              │
+                                                                                              └─► DecisionAggregator
+                                                                                                       │
+                                                                                                       └─► DecisionSynthesizer → END
 ```
 
-Gates trigger an early stop with a specific user-facing message — no downstream processing occurs. Every step is wrapped by `GuardedExecutor`: on failure the step is recorded as DEGRADED and the pipeline continues with reduced confidence rather than crashing (TC011).
+**Genuine multi-agent patterns:**
+- **Parallel document analysis** — `DocumentClassifierAgent` and `DocumentQualityAgent` run concurrently; `DocumentGate` is a fan-in barrier.
+- **Per-document extraction fan-out** — LangGraph `Send` spawns one `ExtractionAgent` per uploaded document; all run in parallel and fan back in to `CrossDocValidator`.
+- **Parallel fraud + policy** — `FraudSignalAgent` and `PolicyOrchestratorAgent` run concurrently; `DecisionAggregator` merges results.
+- **Policy agent hierarchy** — `PolicyOrchestratorAgent` delegates sequentially to six specialised sub-agents (member validation → exclusion → waiting period → pre-auth → per-claim limit → benefit calculation), each with its own trace event.
+
+Gates (DocumentGate, CrossDocValidator, IntakeAgent) trigger an early stop with a specific member-facing message — no downstream processing occurs. On any non-gate agent failure, the step is recorded as DEGRADED and the pipeline continues with reduced confidence (TC011).
 
 See [`docs/architecture.md`](docs/architecture.md) for the full design document.
 
