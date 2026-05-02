@@ -1,8 +1,9 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const CATEGORIES = ["CONSULTATION","DIAGNOSTIC","PHARMACY","DENTAL","VISION","ALTERNATIVE_MEDICINE"];
 const MEMBERS = [
@@ -49,6 +50,13 @@ export default function Home() {
   const [files, setFiles] = useState<FileList | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bcRef = useRef<BroadcastChannel | null>(null);
+
+  useEffect(() => {
+    const ch = new BroadcastChannel("plum-claims-flow");
+    bcRef.current = ch;
+    return () => ch.close();
+  }, []);
 
   // Map raw backend step names to STEPS keys (e.g. "ExtractionAgent[doc_1]" → "ExtractionAgent",
   // policy sub-agents → "PolicyOrchestratorAgent"). stepStatuses may contain many more keys than
@@ -82,6 +90,7 @@ export default function Home() {
     setError("");
     setStepStatuses({});
     setActiveStep(null);
+    bcRef.current?.postMessage({ type: "reset" });
 
     try {
       const metadata = {
@@ -115,6 +124,7 @@ export default function Home() {
           const event = JSON.parse(line.slice(6));
 
           if (event.type === "step") {
+            bcRef.current?.postMessage({ type: "step", step: event.step, status: event.status });
             if (event.status === "started") {
               setActiveStep(event.step);
               setStepStatuses(prev => ({ ...prev, [event.step]: "running" }));
@@ -126,14 +136,17 @@ export default function Home() {
               }));
             }
           } else if (event.type === "complete") {
+            bcRef.current?.postMessage({ type: "complete", claim_id: event.claim_id });
             router.push(`/claims/${event.claim_id}`);
             return;
           } else if (event.type === "error") {
+            bcRef.current?.postMessage({ type: "error", message: event.message });
             throw new Error(event.message);
           }
         }
       }
     } catch (err: any) {
+      bcRef.current?.postMessage({ type: "error", message: err.message });
       setError(err.message);
       setLoading(false);
     }
@@ -145,10 +158,20 @@ export default function Home() {
 
         {/* Hero header */}
         <div className="mb-8">
-          <div className="mb-3 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium"
-            style={{ background: "rgba(87,14,64,0.08)", color: "#570e40" }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ff4052", display: "inline-block" }} />
-            AI-Powered Claims Processing
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+            <div className="mb-3 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium"
+              style={{ background: "rgba(87,14,64,0.08)", color: "#570e40" }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ff4052", display: "inline-block" }} />
+              AI-Powered Claims Processing
+            </div>
+            <Link href="/flow" target="_blank" style={{
+              fontSize: "0.75rem", fontWeight: 600, color: "#570e40", textDecoration: "none",
+              padding: "4px 12px", border: "1.5px solid #e4d0dc", borderRadius: 8,
+              background: "#fff", display: "inline-flex", alignItems: "center", gap: 5,
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ff4052", display: "inline-block" }} />
+              Live Agent Flow
+            </Link>
           </div>
           <h1 style={{ fontSize: "2rem", fontWeight: 800, color: "#2d2d2d", lineHeight: 1.15, letterSpacing: "-0.03em" }}>
             Submit a Claim

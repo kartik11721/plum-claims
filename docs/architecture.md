@@ -159,3 +159,18 @@ Manual claims review is slow, inconsistent, and doesn't scale. This system autom
 Every agent step records: step name, status (OK/DEGRADED/EARLY_STOP), duration_ms, input_summary, output_summary, error. The full trace is retrievable via `GET /api/claims/{id}/trace` and displayed in the UI as a collapsible step-by-step view.
 
 A `degradation_factor` (product of all `× 0.7` multipliers) is included in the trace and visible in the final confidence score. Any claim with `degradation_factor < 1.0` also surfaces a "manual review recommended" note.
+
+### Live Agent Flow (`/flow`)
+
+A second frontend page at `/flow` renders the full pipeline as a live vertical diagram. It reflects the exact graph structure — parallel branches (document analysis, fraud + policy), fan-out extraction, and the six policy sub-agents nested inside PolicyOrchestratorAgent.
+
+**Communication:** The submission page holds a `BroadcastChannel("plum-claims-flow")` and forwards every raw SSE step event (`step`, `complete`, `error`) to it. The flow page subscribes to the same channel. No additional backend traffic is generated; the two browser tabs communicate entirely in-browser via the [BroadcastChannel API](https://developer.mozilla.org/en-US/docs/Web/API/BroadcastChannel).
+
+**Status mapping:** The flow page tracks statuses at the raw backend step-name level (e.g. `MemberValidationAgent`, `ExtractionAgent[doc_1]`) so each sub-agent and per-document extractor can be highlighted independently. This is distinct from the submission form's progress bar, which canonicalises raw names back to the eight top-level display steps.
+
+**Lifecycle:**
+1. On `reset` (new submission) — all nodes return to idle state.
+2. On `step started` — the named node shows a spinning indicator and a "LIVE" badge.
+3. On `step done/degraded` — node switches to green (done) or amber (degraded).
+4. On `complete` — a banner appears with a link to the claim result page.
+5. On `error` — an error banner shows the failure message; all nodes freeze at their last known state.

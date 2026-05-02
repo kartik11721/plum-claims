@@ -90,6 +90,12 @@ npm install
 npm run dev                     # starts on http://localhost:3000
 ```
 
+| Page | URL | Purpose |
+|------|-----|---------|
+| Claim submission | `http://localhost:3000` | Submit a claim with documents |
+| **Live Agent Flow** | `http://localhost:3000/flow` | Real-time pipeline diagram (open in a second tab) |
+| Claim result | `http://localhost:3000/claims/{id}` | Decision, line items, and full audit trace |
+
 ---
 
 ### 4. Run Tests
@@ -113,6 +119,48 @@ POLICY_FILE=../policy_terms.json python scripts/run_eval.py
 ```
 
 Replays all 12 test cases from `test_cases.json` against the live pipeline in eval mode (no vision API needed). Results are written to `docs/eval_report.md`.
+
+---
+
+## Live Agent Flow
+
+The frontend ships a second-tab pipeline visualiser at **`/flow`** (`http://localhost:3000/flow`).
+
+Open it alongside the claim submission form to watch every agent activate in real time during processing.
+
+### What it shows
+
+```
+[Intake Validator]
+        │
+┌── parallel ──────────────────────────┐
+[Document Classifier]   [Document Quality]
+└──────────────────────────────────────┘
+        │
+[Extraction Agent]  ← fan-out: one agent per uploaded doc
+        │
+[Cross-Doc Validator]
+        │
+┌── parallel ──────────────────────────┐
+[Fraud Signal Agent]  [Policy Orchestrator]
+                         ├ Member Validation
+                         ├ Exclusion Check
+                         ├ Waiting Period
+                         ├ Pre-Auth Check
+                         ├ Per-Claim Limit
+                         └ Benefit Calculator
+└──────────────────────────────────────┘
+        │
+[Decision Synthesizer]
+```
+
+Each node shows its real-time status: spinning (running), green check (done), amber warning (degraded), grey dot (waiting). The PolicyOrchestrator card expands to show all six sub-agents individually as they execute.
+
+### How it works
+
+The submission page (`/`) opens a `BroadcastChannel("plum-claims-flow")` and broadcasts every SSE step event from the backend stream. The `/flow` page listens on the same channel and updates its diagram without touching the backend. No extra API calls, no polling — the two tabs communicate entirely in-browser.
+
+**To use during a demo:** click **Live Agent Flow** in the top-right corner of the submission form — it opens `/flow` in a new tab pre-connected to the channel. Submit a claim and switch tabs to watch the pipeline run.
 
 ---
 
