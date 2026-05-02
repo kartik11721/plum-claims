@@ -102,7 +102,39 @@ def _check_match(tc: dict, result) -> tuple[bool, str]:
         if result.confidence < threshold:
             return False, f"FAIL — confidence {result.confidence:.2f} < threshold {threshold}"
 
+    # Message-content checks — spec requires specific data in rejection messages.
+    msg = result.member_message or ""
+    msg_fail = _check_message_content(result, msg)
+    if msg_fail:
+        return False, f"FAIL — message missing required content: {msg_fail}"
+
     return True, f"PASS"
+
+
+def _check_message_content(result, msg: str) -> str | None:
+    """Returns a failure description if a spec-required field is absent from the member message."""
+    from app.models.decision import RejectionReason
+    reasons = set(result.rejection_reasons)
+
+    if RejectionReason.WAITING_PERIOD in reasons:
+        # Spec: "State the date from which the member will be eligible"
+        import re
+        if not re.search(r'\d{4}-\d{2}-\d{2}', msg):
+            return "WAITING_PERIOD rejection must include the eligibility date (YYYY-MM-DD)"
+
+    if RejectionReason.PRE_AUTH_MISSING in reasons:
+        # Spec: "Tell the member what they should do to resubmit with pre-auth"
+        if not any(kw in msg.lower() for kw in ("resubmit", "pre-auth", "pre-authorization", "authoris", "authoriz")):
+            return "PRE_AUTH_MISSING rejection must include resubmission instructions"
+
+    if RejectionReason.PER_CLAIM_EXCEEDED in reasons:
+        # Spec: "State the per-claim limit and the claimed amount clearly"
+        import re
+        amounts = re.findall(r'₹[\d,]+', msg)
+        if len(amounts) < 2:
+            return f"PER_CLAIM_EXCEEDED rejection must state both the claimed amount and the per-claim limit (found {len(amounts)} amount(s))"
+
+    return None
 
 
 def _format_trace(trace) -> str:
@@ -110,6 +142,10 @@ def _format_trace(trace) -> str:
     for event in trace.events:
         status_icon = "✓" if event.status == "OK" else ("⚠" if event.status == "DEGRADED" else "⏹")
         lines.append(f"  {status_icon} {event.step} [{event.status.value}] {event.duration_ms:.0f}ms")
+        if event.input_summary:
+            lines.append(f"    in:  {json.dumps(event.input_summary)}")
+        if event.output_summary:
+            lines.append(f"    out: {json.dumps(event.output_summary)}")
         if event.error:
             lines.append(f"    ⚠ Error: {event.error[:120]}")
     return "\n".join(lines)
@@ -168,6 +204,26 @@ def _write_report(results: list, passed: int, test_cases: list):
         "# Eval Report — Plum Claims Processing System",
         f"\n**Generated:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
         f"**Result:** {passed}/{len(test_cases)} test cases matched expected outcome\n",
+        "---\n",
+        "## Scope & Coverage\n",
+        "This eval runs in **eval mode**: test cases supply ground-truth hints "
+        "(`actual_type`, `quality`, `content`) that short-circuit the three vision-dependent "
+        "agents. The 12/12 pass rate validates the pipeline's business logic, not its ability "
+        "to read real documents.\n",
+        "| Agent | Exercised in this eval? | What would exercise it? |",
+        "|-------|------------------------|-------------------------|",
+        "| IntakeValidator | ✅ Yes — full logic | — |",
+        "| DocumentClassifierAgent | ⚠️ Bypassed — `actual_type` hint used | Real image upload via `/api/claims` |",
+        "| DocumentQualityAgent | ⚠️ Bypassed — `quality` hint used | Real image upload via `/api/claims` |",
+        "| ExtractionAgent (per doc) | ⚠️ Bypassed — `content` hint used | Real image upload via `/api/claims` |",
+        "| CrossDocValidator | ✅ Yes — full identity check | — |",
+        "| FraudSignalAgent | ✅ Yes — full rule logic | — |",
+        "| PolicyOrchestratorAgent + 6 sub-agents | ✅ Yes — full deterministic engine | — |",
+        "| DecisionAggregator / DecisionSynthesizer | ✅ Yes | — |\n",
+        "**Vision pipeline validation** requires uploading real scanned documents (see `sample_docs/`) "
+        "to `/api/claims` and confirming that the classifier, quality check, and OCR extraction produce "
+        "the same ground-truth values used here. The spec notes 'expect handwritten prescriptions, rubber "
+        "stamps' — those failure modes are outside the scope of this eval.\n",
         "---\n",
     ]
 
